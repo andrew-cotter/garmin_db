@@ -4,7 +4,6 @@ import logging
 import time
 from sqlalchemy import create_engine, exc
 import boto3
-from botocore.exceptions import ClientError
 
 
 # Set up logging
@@ -29,7 +28,7 @@ def get_secret():
         get_secret_value_response = client.get_secret_value(
             SecretId=secret_name
         )
-    except boto3.ClientError as e:
+    except Exception as e:
         # For a list of exceptions thrown, see
         # https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_GetSecretValue.html
         raise e
@@ -102,7 +101,8 @@ def main(event, context):
             'host': secrets["host"],
             'user': secrets["username"],
             'password': secrets["password"],
-            'database': secrets["dbname"]
+            'database': secrets["dbname"],
+            'port': secrets["port"]
         }
 
         # Create a connection string for SQLAlchemy using pymysql
