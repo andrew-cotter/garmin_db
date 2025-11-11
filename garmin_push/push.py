@@ -10,7 +10,6 @@ from botocore.exceptions import ClientError
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
-logger.info("Hello")
 
 # S3 Client
 s3_client = boto3.client('s3')
@@ -18,25 +17,24 @@ bucket_name = 'aseaotter-garmin'
 folder_name = 'activities/'
 
 def get_secret():
-
-    secret_name = "garmin/connect_login"
+    secret_name = "mysql_secret"
     region_name = "us-east-2"
-
     # Create a Secrets Manager client
     session = boto3.session.Session()
     client = session.client(
         service_name='secretsmanager',
         region_name=region_name
     )
-
     try:
         get_secret_value_response = client.get_secret_value(
             SecretId=secret_name
         )
-    except ClientError as e:
+    except boto3.ClientError as e:
         # For a list of exceptions thrown, see
         # https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_GetSecretValue.html
         raise e
+    secret = get_secret_value_response['SecretString']
+    return json.loads(secret)
 
 def find_dict_columns(dataframe):
     dict_columns = []
@@ -110,7 +108,7 @@ def main(event, context):
         # Create a connection string for SQLAlchemy using pymysql
         connection_string = (
             f"mysql+pymysql://{db_config['user']}:{db_config['password']}@"
-            f"{db_config['host']}:3306/{db_config['database']}"
+            f"{db_config['host']}:{db_config['port']}/{db_config['database']}"
         )
         print(connection_string)
         print("Creating SQLAlchemy engine")
