@@ -25,7 +25,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::<ACCOUNT_ID>:role/<YourGithubOidcRole>
+          role-to-assume: arn:aws:iam::010438461793:role/garmin_push_pull_deploy
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Set up Python
