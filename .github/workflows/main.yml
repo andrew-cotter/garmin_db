@@ -1,0 +1,76 @@
+name: Deploy Garmin Lambdas
+
+on:
+  push:
+    branches: [ main ]      # or whatever branch you deploy from
+  workflow_dispatch:        # allow manual runs in the UI
+
+env:
+  AWS_REGION: us-east-2     # <-- change to your region
+  PULL_FUNCTION_NAME: garmin_pull  # <-- change to your actual Lambda name if different
+  PUSH_FUNCTION_NAME: garmin_push  # <-- change to your actual Lambda name if different
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write        # needed for OIDC
+      contents: read
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::<ACCOUNT_ID>:role/<YourGithubOidcRole>
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"   # or match your Lambda runtime
+
+      # --------- BUILD & DEPLOY PULL FUNCTION ---------
+      - name: Build pull.zip
+        run: |
+          mkdir -p build/pull
+          # install deps for pull into build/pull
+          pip install -r garmin_pull/requirements.txt -t build/pull
+          # copy your function code
+          cp garmin_pull/pull.py build/pull/
+          # if you have a package directory, copy it too
+          if [ -d garmin_pull/python ]; then
+            cp -r garmin_pull/python build/pull/
+          fi
+          cd build/pull
+          zip -r ../pull.zip .
+
+      - name: Deploy pull Lambda
+        run: |
+          aws lambda update-function-code \
+            --function-name "$PULL_FUNCTION_NAME" \
+            --zip-file fileb://build/pull.zip
+
+      # --------- BUILD & DEPLOY PUSH FUNCTION ---------
+      - name: Build push.zip
+        run: |
+          mkdir -p build/push
+          # install deps for push into build/push
+          pip install -r garmin_push/requirements.txt -t build/push
+          # copy your function code
+          cp garmin_push/push.py build/push/
+          # if you have a package directory, copy it too
+          if [ -d garmin_push/python ]; then
+            cp -r garmin_push/python build/push/
+          fi
+          cd build/push
+          zip -r ../push.zip .
+
+      - name: Deploy push Lambda
+        run: |
+          aws lambda update-function-code \
+            --function-name "$PUSH_FUNCTION_NAME" \
+            --zip-file fileb://build/push.zip
