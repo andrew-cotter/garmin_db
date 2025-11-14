@@ -2,20 +2,29 @@ name: Deploy Garmin Lambdas
 
 on:
   push:
-    branches: [ main ]      # or whatever branch you deploy from
-  workflow_dispatch:        # allow manual runs in the UI
+    branches: [ main ]
+  workflow_dispatch:
 
 env:
-  AWS_REGION: us-east-2     # <-- change to your region
-  PULL_FUNCTION_NAME: garmin_pull  # <-- change to your actual Lambda name if different
-  PUSH_FUNCTION_NAME: garmin_push  # <-- change to your actual Lambda name if different
+  AWS_REGION: us-east-2
+  ACCOUNT_ID: "010438461793"
+  LAYER_BUCKET: "aseaotter-lambda-requirements"
+
+  PULL_FUNCTION_NAME: "garmin_pull"
+  PUSH_FUNCTION_NAME: "garmin_push"
+
+  PULL_LAYER_NAME: "garmin-pull-deps"
+  PUSH_LAYER_NAME: "garmin-push-deps"
+
+  PYTHON_RUNTIME: "python3.12"
+  ARCH: "x86_64"
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     permissions:
-      id-token: write        # needed for OIDC
+      id-token: write
       contents: read
 
     steps:
@@ -31,46 +40,106 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"   # or match your Lambda runtime
+          python-version: "3.12"  # match your Lambda runtime
 
-      # --------- BUILD & DEPLOY PULL FUNCTION ---------
-      - name: Build pull.zip
+      # ========= PULL LAYER (deps) =========
+      - name: Build pull layer (deps)
         run: |
-          mkdir -p build/pull
-          # install deps for pull into build/pull
-          pip install -r garmin_pull/requirements.txt -t build/pull
-          # copy your function code
-          cp garmin_pull/pull.py build/pull/
-          # if you have a package directory, copy it too
+          rm -rf build
+          mkdir -p build/pull_layer/python
+          pip install -r garmin_pull/requirements.txt -t build/pull_layer/python
+          cd build/pull_layer
+          zip -r ../pull_layer.zip python
+
+      - name: Upload pull layer to S3
+        run: |
+          PULL_LAYER_KEY="layers/pull_layer_${GITHUB_SHA}.zip"
+          echo "PULL_LAYER_KEY=$PULL_LAYER_KEY" >> $GITHUB_ENV
+          aws s3 cp build/pull_layer.zip "s3://${LAYER_BUCKET}/${PULL_LAYER_KEY}"
+
+      - name: Publish pull layer version
+        id: publish_pull_layer
+        run: |
+          LAYER_ARN=$(aws lambda publish-layer-version \
+            --layer-name "${PULL_LAYER_NAME}" \
+            --content "S3Bucket=${LAYER_BUCKET},S3Key=${PULL_LAYER_KEY}" \
+            --compatible-runtimes "${PYTHON_RUNTIME}" \
+            --compatible-architectures "${ARCH}" \
+            --query 'LayerVersionArn' \
+            --output text)
+          echo "PULL_LAYER_ARN=$LAYER_ARN" >> $GITHUB_ENV
+          echo "Published pull layer: $LAYER_ARN"
+
+      - name: Attach pull layer to function
+        run: |
+          aws lambda update-function-configuration \
+            --function-name "${PULL_FUNCTION_NAME}" \
+            --layers "${PULL_LAYER_ARN}"
+
+      # ========= PUSH LAYER (deps) =========
+      - name: Build push layer (deps)
+        run: |
+          mkdir -p build/push_layer/python
+          pip install -r garmin_push/requirements.txt -t build/push_layer/python
+          cd build/push_layer
+          zip -r ../push_layer.zip python
+
+      - name: Upload push layer to S3
+        run: |
+          PUSH_LAYER_KEY="layers/push_layer_${GITHUB_SHA}.zip"
+          echo "PUSH_LAYER_KEY=$PUSH_LAYER_KEY" >> $GITHUB_ENV
+          aws s3 cp build/push_layer.zip "s3://${LAYER_BUCKET}/${PUSH_LAYER_KEY}"
+
+      - name: Publish push layer version
+        id: publish_push_layer
+        run: |
+          LAYER_ARN=$(aws lambda publish-layer-version \
+            --layer-name "${PUSH_LAYER_NAME}" \
+            --content "S3Bucket=${LAYER_BUCKET},S3Key=${PUSH_LAYER_KEY}" \
+            --compatible-runtimes "${PYTHON_RUNTIME}" \
+            --compatible-architectures "${ARCH}" \
+            --query 'LayerVersionArn' \
+            --output text)
+          echo "PUSH_LAYER_ARN=$LAYER_ARN" >> $GITHUB_ENV
+          echo "Published push layer: $LAYER_ARN"
+
+      - name: Attach push layer to function
+        run: |
+          aws lambda update-function-configuration \
+            --function-name "${PUSH_FUNCTION_NAME}" \
+            --layers "${PUSH_LAYER_ARN}"
+
+      # ========= PULL CODE (small zip) =========
+      - name: Build pull code zip
+        run: |
+          mkdir -p build/pull_code
+          cp garmin_pull/pull.py build/pull_code/
           if [ -d garmin_pull/python ]; then
-            cp -r garmin_pull/python build/pull/
+            cp -r garmin_pull/python build/pull_code/
           fi
-          cd build/pull
-          zip -r ../pull.zip .
+          cd build/pull_code
+          zip -r ../pull_code.zip .
 
-      - name: Deploy pull Lambda
+      - name: Deploy pull code
         run: |
           aws lambda update-function-code \
-            --function-name "$PULL_FUNCTION_NAME" \
-            --zip-file fileb://build/pull.zip
+            --function-name "${PULL_FUNCTION_NAME}" \
+            --zip-file fileb://build/pull_code.zip
 
-      # --------- BUILD & DEPLOY PUSH FUNCTION ---------
-      - name: Build push.zip
+      # ========= PUSH CODE (small zip) =========
+      - name: Build push code zip
         run: |
-          mkdir -p build/push
-          # install deps for push into build/push
-          pip install -r garmin_push/requirements.txt -t build/push
-          # copy your function code
-          cp garmin_push/push.py build/push/
-          # if you have a package directory, copy it too
+          mkdir -p build/push_code
+          cp garmin_push/push.py build/push_code/
           if [ -d garmin_push/python ]; then
-            cp -r garmin_push/python build/push/
+            cp -r garmin_push/python build/push_code/
           fi
-          cd build/push
-          zip -r ../push.zip .
+          cd build/push_code
+          zip -r ../push_code.zip .
 
-      - name: Deploy push Lambda
+      - name: Deploy push code
         run: |
           aws lambda update-function-code \
-            --function-name "$PUSH_FUNCTION_NAME" \
-            --zip-file fileb://build/push.zip
+            --function-name "${PUSH_FUNCTION_NAME}" \
+            --zip-file fileb://build/push_code.zip
+
