@@ -129,17 +129,25 @@ jobs:
       # ========= PUSH CODE (small zip) =========
       - name: Build push code zip
         run: |
+          # Start clean
+          rm -rf build/push_code
           mkdir -p build/push_code
+
+          # Copy ONLY the code you need in the function package
           cp garmin_push/push.py build/push_code/
-          if [ -d garmin_push/python ]; then
-            cp -r garmin_push/python build/push_code/
-          fi
+
+          # If you have tiny helper modules, copy them explicitly:
+          # cp garmin_push/helpers.py build/push_code/
+
           cd build/push_code
+
+          # Zip ONLY the contents of this directory, not the whole build tree
           zip -r ../push_code.zip .
 
-      - name: Deploy push code
-        run: |
-          aws lambda update-function-code \
-            --function-name "${PUSH_FUNCTION_NAME}" \
-            --zip-file fileb://build/push_code.zip
+          cd -
+          echo "Size of push_code.zip:"
+          ls -lh build/push_code.zip
+          echo "First few files inside push_code.zip:"
+          unzip -l build/push_code.zip | head -40
+
 
