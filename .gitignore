@@ -1,3 +1,9 @@
 create_database.ipynb
 .venv/
 */python/
+
+# build artifacts
+garmin_pull/python.zip
+garmin_push/python.zip
+build/
+*.zip
