@@ -89,11 +89,11 @@ The `garmin_pull` module downloads activity data from Garmin Connect and uploads
 from garmin_pull.pull import get_activities
 
 # Download last 90 activities and upload to S3
-get_activities("aseaotter-garmin", 90, overwrite=False)
+get_activities("bucket_name", 90, overwrite=False)
 ```
 
 **Parameters:**
-- `bucket_name`: S3 bucket name (default: `"aseaotter-garmin"`)
+- `bucket_name`: S3 bucket name
 - `count`: Number of recent activities to download
 - `overwrite`: If `True`, re-uploads existing activities (default: `False`)
 
