@@ -157,3 +157,6 @@ garmin_db/
 - Activity files are stored in S3 with the prefix `activities/` and named as `activity_{activityId}.json`
 - The push function only processes files in the `activities/` folder
 - Complex nested data structures (dictionaries and lists) are automatically excluded from database insertion
+
+## Changelog
+ - 2026.01.28 - Added "activityUUID" as a nullable column to the database table via SQL to accommodate schema change.
