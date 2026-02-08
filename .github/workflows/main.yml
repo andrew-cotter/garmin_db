@@ -150,4 +150,10 @@ jobs:
           echo "First few files inside push_code.zip:"
           unzip -l build/push_code.zip | head -40
 
+      - name: Deploy push code
+        run: |
+          aws lambda update-function-code \
+            --function-name "${PUSH_FUNCTION_NAME}" \
+            --zip-file fileb://build/push_code.zip
+
 
