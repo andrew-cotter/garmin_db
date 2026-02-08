@@ -118,7 +118,12 @@ jobs:
             cp -r garmin_pull/python build/pull_code/
           fi
           cd build/pull_code
-          zip -r ../pull_code.zip .
+          zip -r ../pull_code.zip.
+
+      - name: Wait for pull function ready (after layer attach)
+        run: |
+          aws lambda wait function-updated --function-name "${PULL_FUNCTION_NAME}"
+          echo "Pull function is ready for code update"
 
       - name: Deploy pull code
         run: |
@@ -149,6 +154,11 @@ jobs:
           ls -lh build/push_code.zip
           echo "First few files inside push_code.zip:"
           unzip -l build/push_code.zip | head -40
+
+      - name: Wait for push function ready (after layer attach)
+        run: |
+          aws lambda wait function-updated --function-name "${PUSH_FUNCTION_NAME}"
+          echo "Push function is ready for code update"
 
       - name: Deploy push code
         run: |
