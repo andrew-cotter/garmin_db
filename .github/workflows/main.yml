@@ -118,7 +118,7 @@ jobs:
             cp -r garmin_pull/python build/pull_code/
           fi
           cd build/pull_code
-          zip -r ../pull_code.zip.
+          zip -r ../pull_code.zip .
 
       - name: Wait for pull function ready (after layer attach)
         run: |
