@@ -129,10 +129,10 @@ def main(event, context):
                 print(f"DataFrame uploaded to table '{table_name}'")
         
         except exc.SQLAlchemyError as err:
-            print(f"SQLAlchemy Error: {err}")
+            raise Exception(f"SQLAlchemy Error: {err}")
         
     except Exception as e:
-        print(f"General error occurred: {e}")
+        raise Exception(f"General error occurred: {e}")
     
     finally:
         end_time = time.time()
