@@ -1,5 +1,6 @@
 create_database.ipynb
 .venv/
+venv/
 */python/
 
 # build artifacts

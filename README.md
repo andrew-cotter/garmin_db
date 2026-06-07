@@ -125,6 +125,8 @@ garmin_db/
 ├── garmin_push/
 │   ├── push.py              # Main push script
 │   └── requirements.txt     # Python dependencies
+├── scripts/
+│   └── build-locally.sh     # Local build test (no AWS)
 ├── push_test.ipynb          # Testing notebook
 ├── requirements.txt         # Root-level dependencies
 └── README.md                # This file
@@ -150,6 +152,24 @@ garmin_db/
 - **Error Handling**: Comprehensive logging and error handling
 - **Rate Limiting**: Includes delays to avoid overwhelming Garmin Connect API
 - **Data Cleaning**: Automatically filters out complex nested structures (dicts/lists) before database insertion
+
+## Testing the CD workflow locally
+
+You can verify the build steps (and catch zip/path mistakes) without pushing to GitHub or using AWS:
+
+```bash
+./scripts/build-locally.sh
+```
+
+This replicates the workflow’s build steps: pull/push layers and code zips under `build/`. No AWS credentials or API calls. Inspect `build/*.zip` and `unzip -l build/pull_code.zip` (etc.) to confirm contents.
+
+To run the **full** workflow locally (including AWS deploy), use [act](https://github.com/nektos/act) with Docker. OIDC won’t work locally; pass AWS credentials via env or `--secret`:
+
+```bash
+# Build and run the workflow (requires Docker + act)
+act push -s AWS_ACCESS_KEY_ID -s AWS_SECRET_ACCESS_KEY -s AWS_SESSION_TOKEN
+# Or with profile: act push --env AWS_PROFILE=your-profile
+```
 
 ## Notes
 

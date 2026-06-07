@@ -9,8 +9,9 @@ import json
 import fitfile.conversions as conversions
 import zipfile
 import requests
+from requests.exceptions import RetryError
 import boto3
-from botocore.exceptions import ClientError
+from garminconnect import Garmin
 
 def get_secret():
     secret_name = "garmin/connect_login"
@@ -36,10 +37,45 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 garmin_connect_activity_search_url = "/activitylist-service/activities/search/activities"
 garmin_connect_download_service_url = "/download-service/files"
-secret = get_secret()
-garth.login(secret["username"], secret["pw"])
-garth.configure(domain="garmin.com")
 s3_client = boto3.client("s3", region_name="us-east-2")
+
+_garmin_logged_in = False
+
+def ensure_garmin_session():
+    """Log in to Garmin Connect once per Lambda container (with 429 backoff)."""
+    global _garmin_logged_in
+    if _garmin_logged_in:
+        return
+
+    secret = get_secret()
+    max_attempts = 5
+    for attempt in range(max_attempts):
+        try:
+            garmin = Garmin(secret["username"], secret["pw"])
+            garmin.garth.sess.headers.update({
+                "User-Agent": (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/131.0.0.0 Safari/537.36"
+                )
+            })
+            garmin.login()
+            print("Success")
+            # garth.login(secret["username"], secret["pw"])
+            # garth.configure(domain="garmin.com")
+            _garmin_logged_in = True
+            logger.info("Logged in to Garmin Connect")
+            return
+        except (GarthHTTPError, GarthException, RetryError, requests.HTTPError) as e:
+            if attempt == max_attempts - 1:
+                raise
+            delay = min(5 * (2 ** attempt), 60)
+            print("Failed")
+            logger.warning(
+                "Garmin login failed (attempt %d/%d): %s. Retrying in %ds...",
+                attempt + 1, max_attempts, e, delay,
+            )
+            time.sleep(delay)
 
 def convert_to_json(obj):
     return obj.__str__()
@@ -114,6 +150,7 @@ def s3_file_exists(bucket_name, key):
 
 def get_activities(bucket_name, count, overwrite=False):
     """Download activity files from Garmin Connect and upload to S3."""
+    ensure_garmin_session()
     temp_dir = tempfile.mkdtemp()
     logger.info("Getting activities: count %d, temp %s", count, temp_dir)
     activities = get_activity_summaries(0, count)
